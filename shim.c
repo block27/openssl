@@ -24,6 +24,7 @@
 #include <openssl/engine.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#include <openssl/rand.h>
 #include <openssl/ssl.h>
 
 #include "_cgo_export.h"
@@ -735,6 +736,18 @@ const EVP_CIPHER *X_EVP_CIPHER_CTX_cipher(EVP_CIPHER_CTX *ctx) {
 
 int X_EVP_PKEY_CTX_set_ec_paramgen_curve_nid(EVP_PKEY_CTX *ctx, int nid) {
 	return EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, nid);
+}
+
+void RAND_seed(const void *buf, int num) {
+	RAND_seed(buf, num);
+}
+
+int RAND_load_file(const char *filename, long max_bytes) {
+	return RAND_load_file(filename, max_bytes);
+}
+
+int RAND_status(void) {
+	return RAND_status();
 }
 
 size_t X_HMAC_size(const HMAC_CTX *e) {

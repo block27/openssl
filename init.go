@@ -97,6 +97,9 @@ func init() {
 	if rc := C.X_shim_init(); rc != 0 {
 		panic(fmt.Errorf("X_shim_init failed with %d", rc))
 	}
+
+	fmt.Printf("OPENSSL_VERSION_NUMBER -> 0x%0x\n", C.OPENSSL_VERSION_NUMBER)
+	fmt.Printf("OPENSSL_VERSION_TEXT -> %s\n", C.OPENSSL_VERSION_TEXT)
 }
 
 // errorFromErrorQueue needs to run in the same OS thread as the operation

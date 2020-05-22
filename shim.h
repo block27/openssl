@@ -24,7 +24,9 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#include <openssl/opensslv.h>
 #include <openssl/pem.h>
+#include <openssl/rand.h>
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 #include <openssl/ec.h>
@@ -150,6 +152,11 @@ extern void X_EVP_CIPHER_CTX_set_padding(EVP_CIPHER_CTX *ctx, int padding);
 extern const EVP_CIPHER *X_EVP_CIPHER_CTX_cipher(EVP_CIPHER_CTX *ctx);
 extern int X_EVP_CIPHER_CTX_encrypting(const EVP_CIPHER_CTX *ctx);
 extern int X_EVP_PKEY_CTX_set_ec_paramgen_curve_nid(EVP_PKEY_CTX *ctx, int nid);
+
+/* RAND methods */
+extern void RAND_seed(const void *buf, int num);
+extern int RAND_load_file(const char *filename, long max_bytes);
+extern int RAND_status(void);
 
 /* HMAC methods */
 extern size_t X_HMAC_size(const HMAC_CTX *e);

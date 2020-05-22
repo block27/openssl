@@ -18,8 +18,11 @@ package openssl
 import "C"
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"runtime"
 	"unsafe"
 )
@@ -76,6 +79,8 @@ type PublicKey interface {
 	// object.
 	KeyType() NID
 
+	Bytes() ([]byte, error)
+
 	// BaseType returns an identifier for what kind of key is represented
 	// by this object.
 	// Keys that share same algorithm but use different legacy formats
@@ -115,6 +120,25 @@ func (key *pKey) KeyType() NID {
 
 func (key *pKey) BaseType() NID {
 	return NID(C.EVP_PKEY_base_id(key.key))
+}
+
+func (key *pKey) Bytes() ([]byte, error) {
+	bio := C.BIO_new(C.BIO_s_mem())
+	if bio == nil {
+		return nil, errors.New("failed to allocate memory BIO")
+	}
+	defer C.BIO_free(bio)
+
+	if int(C.i2d_PrivateKey_bio(bio, key.key)) != 1 {
+		return nil, errors.New("failed dumping private key der")
+	}
+
+	body, err := ioutil.ReadAll(asAnyBio(bio))
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 func (key *pKey) SignPKCS1v15(method Method, data []byte) ([]byte, error) {
@@ -277,11 +301,13 @@ func LoadPrivateKeyFromPEM(pem_block []byte) (PrivateKey, error) {
 	if len(pem_block) == 0 {
 		return nil, errors.New("empty pem block")
 	}
+
 	bio := C.BIO_new_mem_buf(unsafe.Pointer(&pem_block[0]),
 		C.int(len(pem_block)))
 	if bio == nil {
 		return nil, errors.New("failed creating bio")
 	}
+
 	defer C.BIO_free(bio)
 
 	key := C.PEM_read_bio_PrivateKey(bio, nil, nil, nil)
@@ -293,6 +319,7 @@ func LoadPrivateKeyFromPEM(pem_block []byte) (PrivateKey, error) {
 	runtime.SetFinalizer(p, func(p *pKey) {
 		C.X_EVP_PKEY_free(p.key)
 	})
+
 	return p, nil
 }
 
@@ -408,6 +435,11 @@ func GenerateRSAKey(bits int) (PrivateKey, error) {
 
 // GenerateRSAKeyWithExponent generates a new RSA private key.
 func GenerateRSAKeyWithExponent(bits int, exponent int) (PrivateKey, error) {
+	// Seed the PRNG
+	if err := seedPRNG(1024); err != nil {
+		return nil, err
+	}
+
 	rsa := C.RSA_generate_key(C.int(bits), C.ulong(exponent), nil, nil)
 	if rsa == nil {
 		return nil, errors.New("failed to generate RSA key")
@@ -427,9 +459,13 @@ func GenerateRSAKeyWithExponent(bits int, exponent int) (PrivateKey, error) {
 	return p, nil
 }
 
-// GenerateECKey generates a new elliptic curve private key on the speicified
+// GenerateECKey generates a new elliptic curve private key on the specified
 // curve.
 func GenerateECKey(curve EllipticCurve) (PrivateKey, error) {
+	// Seed the PRNG
+	if err := seedPRNG(4096); err != nil {
+		return nil, err
+	}
 
 	// Create context for parameter generation
 	paramCtx := C.EVP_PKEY_CTX_new_id(C.EVP_PKEY_EC, nil)
@@ -480,6 +516,11 @@ func GenerateECKey(curve EllipticCurve) (PrivateKey, error) {
 
 // GenerateED25519Key generates a Ed25519 key
 func GenerateED25519Key() (PrivateKey, error) {
+	// Seed the PRNG
+	if err := seedPRNG(4096); err != nil {
+		return nil, err
+	}
+
 	// Key context
 	keyCtx := C.EVP_PKEY_CTX_new_id(C.X_EVP_PKEY_ED25519, nil)
 	if keyCtx == nil {
@@ -501,4 +542,51 @@ func GenerateED25519Key() (PrivateKey, error) {
 		C.X_EVP_PKEY_free(p.key)
 	})
 	return p, nil
+}
+
+func randInt(min int, max int) int {
+    return min + rand.Intn(max-min)
+}
+
+func randomString(l int) string {
+    bytes := make([]byte, l)
+    for i := 0; i < l; i++ {
+        bytes[i] = byte(randInt(65, 90))
+    }
+    return string(bytes)
+}
+
+func seedPRNG(size int) error {
+	// beginning rand_status
+	be := C.RAND_status()
+
+	// Seed the PRNG
+	by := make([]byte, size)
+	Reader.Read(by)
+
+	// XOR data
+	for i, b := range by {
+		by[i&3] ^= b  // xor b on element of random
+	}
+
+	var buff bytes.Buffer
+	buff.WriteString(string(by))
+	buff.WriteString(randomString(size))
+	buff.WriteByte(0)
+
+	sbytes := []byte("/dev/urandom")
+  ccp := (*C.char)(unsafe.Pointer(&sbytes[0]))
+
+	// call the RAND_seed with the generated buffer.
+	if (C.RAND_load_file(ccp, C.long(size)) <= 0) {
+		C.RAND_seed(unsafe.Pointer(&buff.Bytes()[0]), C.int(len(buff.Bytes())))
+	}
+
+	// ending rand_status
+	en := C.RAND_status()
+
+	fmt.Println("statusStart: ", be)
+	fmt.Println("statusFinish: ", en)
+
+	return nil
 }
