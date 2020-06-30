@@ -90,6 +90,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -98,8 +99,10 @@ func init() {
 		panic(fmt.Errorf("X_shim_init failed with %d", rc))
 	}
 
-	fmt.Printf("OPENSSL_VERSION_NUMBER -> 0x%0x\n", C.OPENSSL_VERSION_NUMBER)
-	fmt.Printf("OPENSSL_VERSION_TEXT -> %s\n", C.OPENSSL_VERSION_TEXT)
+	if os.Getenv("DEBUG") == "1" {
+		fmt.Printf("OPENSSL_VERSION_NUMBER -> 0x%0x\nOPENSSL_VERSION_TEXT -> %s\n",
+			C.OPENSSL_VERSION_NUMBER, C.OPENSSL_VERSION_TEXT)
+	}
 }
 
 // errorFromErrorQueue needs to run in the same OS thread as the operation
